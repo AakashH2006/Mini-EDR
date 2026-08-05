@@ -6,7 +6,7 @@ Mini EDR monitors endpoint activity on a Windows machine and provides real-time 
 
 ## Why This Project
 
-I built **Aegis EDR** to understand how commercial Endpoint Detection & Response (EDR) platforms work from an engineer's perspective—not just as a user. This project is my hands-on journey into Windows telemetry, real-time event streaming, backend architecture, and SOC-style dashboard design.
+I built **Mini EDR** to understand how commercial Endpoint Detection & Response (EDR) platforms work from an engineer's perspective—not just as a user. This project is my hands-on journey into Windows telemetry, real-time event streaming, backend architecture, and SOC-style dashboard design.
 
 My goal is to progressively evolve it into a complete EDR platform by adding detection logic, behavioral analysis, explainable AI, and response capabilities while learning the technologies behind each component.
 
