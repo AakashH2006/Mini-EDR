@@ -8,6 +8,10 @@ A lightweight Endpoint Detection & Response (EDR) system built for learning mode
 > **Current Status:** Phase 1 – Telemetry Collection & Visualization
 
 ---
+## Why This Project
+
+I built Mini EDR to understand how commercial EDRs work under the hood — not just as a user, but as someone who builds endpoint security systems. This project is my sandbox for learning Windows telemetry, real-time event streaming, and security-focused dashboard design.
+---
 
 ## Overview
 
