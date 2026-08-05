@@ -1,5 +1,8 @@
 # Mini-EDR
+---
+
 Mini EDR monitors endpoint activity on a Windows machine and provides real-time visibility into system events—process creation, network connections, USB insertions, and user logons—streamed live to a React dashboard via WebSockets.
+
 <img width="1860" height="1021" alt="Mini-EDR dashboard" src="https://github.com/user-attachments/assets/c876a0b3-65d2-4f43-b3de-7e5e5fefa641" />
 ---
 
