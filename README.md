@@ -145,17 +145,23 @@ Once the agent, backend, and frontend are running, the dashboard will begin disp
 
 ## UI
 
-The dashboard follows a modern enterprise cybersecurity design inspired by commercial EDR products.
+### Dashboard Overview
 
-Pages include:
+<img width="1867" height="1027" alt="Detailed dashboard" src="https://github.com/user-attachments/assets/8d8cf04d-a89a-4758-b8d4-589167db4bfa" />
 
-- Activity Explorer
-- Processes
-- Network
-- Timeline
-- Settings
+*Main Activity Explorer showing real-time event stream, statistics cards, and expanded event details.*
 
-The interface uses a Cyber Blue theme with a dark SOC-style layout optimized for monitoring endpoint activity.
+### Timeline View
+
+<img width="1862" height="1042" alt="Timeline Mini-edr" src="https://github.com/user-attachments/assets/929472aa-84b1-434a-af44-52c135779581" />
+
+*Chronological event feed grouped by hour for investigation workflows.*
+
+### Settings & Diagnostics
+
+<img width="1856" height="1028" alt="Mini-edr Settings" src="https://github.com/user-attachments/assets/d6738ba3-922c-4a70-ba87-24bc1dbca0b6" />
+
+*Connection status, WebSocket health, and collector configuration.*
 
 ---
 
