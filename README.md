@@ -1,16 +1,15 @@
 # Mini-EDR
 Mini EDR monitors endpoint activity on a Windows machine and provides real-time visibility into system events—process creation, network connections, USB insertions, and user logons—streamed live to a React dashboard via WebSockets.
 <img width="1860" height="1021" alt="Mini-EDR dashboard" src="https://github.com/user-attachments/assets/c876a0b3-65d2-4f43-b3de-7e5e5fefa641" />
-# Mini EDR – Phase 1: Endpoint Telemetry
-
-A lightweight Endpoint Detection & Response (EDR) system built for learning modern endpoint security concepts. Phase 1 focuses on collecting endpoint telemetry, storing it efficiently, and presenting it through a professional SOC-style dashboard.
-
-> **Current Status:** Phase 1 – Telemetry Collection & Visualization
-
 ---
+
 ## Why This Project
 
-I built Mini EDR to understand how commercial EDRs work under the hood — not just as a user, but as someone who builds endpoint security systems. This project is my sandbox for learning Windows telemetry, real-time event streaming, and security-focused dashboard design.
+I built **Aegis EDR** to understand how commercial Endpoint Detection & Response (EDR) platforms work from an engineer's perspective—not just as a user. This project is my hands-on journey into Windows telemetry, real-time event streaming, backend architecture, and SOC-style dashboard design.
+
+My goal is to progressively evolve it into a complete EDR platform by adding detection logic, behavioral analysis, explainable AI, and response capabilities while learning the technologies behind each component.
+
+> **Current Status:** Phase 1 – Telemetry Collection & Visualization
 ---
 
 ## Overview
