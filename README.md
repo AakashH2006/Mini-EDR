@@ -97,6 +97,32 @@ React + TypeScript Dashboard
 - Tailwind CSS
 
 ---
+## Design Decisions
+
+| Decision | Reason |
+|----------|--------|
+| **Python** | Rich ecosystem for Windows telemetry, system monitoring, and rapid backend development. |
+| **FastAPI** | High-performance API framework with automatic documentation and excellent WebSocket support. |
+| **SQLite** | Lightweight, serverless database that's perfect for a single-endpoint EDR prototype while keeping deployment simple. |
+| **React + TypeScript** | Component-based architecture with type safety for building a scalable dashboard. |
+| **Tailwind CSS** | Rapid development with consistent, maintainable UI styling. |
+| **Vite** | Fast development server and build tooling for React applications. |
+| **WebSockets** | Enables real-time event streaming without inefficient polling. |
+| **Unified Event Schema** | Normalizing all telemetry into a common format simplifies querying, filtering, and future detection logic. |
+| **Collector-Based Architecture** | Each telemetry source is isolated, making it easy to extend with new collectors later. |
+
+---
+## Future Improvements
+
+- Rule-based detection engine
+- Process tree correlation
+- MITRE ATT&CK mapping
+- SHAP-based explainability
+- Automated response actions
+- Multi-endpoint support
+
+---
+
 ## Setup Instructions
 
 ### Prerequisites
