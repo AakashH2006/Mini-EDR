@@ -50,13 +50,13 @@ Phase 1 focuses only on **telemetry**, not threat detection.
 - Active Connections
 - USB Devices
 
-### Diagnostics
+### Diagnostics & Agent Control
 
-- Collector health monitoring
-- Collector status
-- Collector debug logs
-- WebSocket status
-- SQLite connection status
+- Collector health monitoring (Running / Stopped / Crashed)
+- **Start/stop each collector directly from the dashboard** — no need for separate terminals
+- Live collector debug logs (last 20 lines), viewable inline per collector
+- WebSocket status (Live / Connecting / Disconnected) with manual Reconnect
+- Backend/API connection status
 
 ---
 
@@ -66,17 +66,19 @@ Phase 1 focuses only on **telemetry**, not threat detection.
 Windows Endpoint
         │
         ▼
-Python Telemetry Agent
+Python Telemetry Agent (4 collectors)
         │
         ▼
-SQLite Database
+SQLite Database (WAL mode, 30-day retention)
         │
         ▼
-FastAPI Backend
+FastAPI Backend (REST + WebSocket)
         │
         ▼
 React + TypeScript Dashboard
 ```
+
+The dashboard doesn't just read from this pipeline — it can also control the agent side of it. The Settings page spawns/stops each collector as a subprocess of the backend and tails its log, so day-to-day use doesn't require managing terminals by hand.
 
 ---
 
@@ -96,6 +98,12 @@ React + TypeScript Dashboard
 - Vite
 - Tailwind CSS
 
+### Agent
+
+- Python
+- `pywin32` (WMI process trace, volume change events, Security Event Log)
+- `psutil` (network connection polling)
+
 ---
 ## Setup Instructions
 
@@ -114,13 +122,15 @@ cd mini-edr
 
 ### 2. Backend
 
-```bash
+```powershell
 cd backend
 python -m venv venv
 venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app:app --reload
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --reload
 ```
+
+Runs on `http://localhost:8000`. For full telemetry visibility (WMI process trace, Security log, elevated network connections) and to control collectors from the Settings page, **run this terminal as Administrator**.
 
 ### 3. Frontend
 
@@ -130,11 +140,31 @@ npm install
 npm run dev
 ```
 
+Opens on `http://localhost:5173`.
+
 ### 4. Agent
 
-```bash
+There are two ways to run the collectors:
+
+**Option A — from the dashboard (recommended):** with the backend running as Administrator, go to **Settings → Collectors** and hit Start on each one. If a collector shows "Crashed," expand it — the log tail usually points straight at the cause (most often: not elevated, or logoff auditing not enabled).
+
+**Option B — manually, one terminal per collector:**
+
+```powershell
 cd agent
-python main.py
+python -m venv agent-venv
+agent-venv\Scripts\activate
+python -m pip install pywin32 psutil
+python process_collector.py
+```
+
+Repeat for `network_collector.py`, `usb_collector.py`, and `logon_collector.py`, each as Administrator.
+
+**One-time setup for logon/logoff events** — Windows doesn't audit logoffs by default:
+
+```powershell
+auditpol /set /subcategory:"Logon" /success:enable /failure:enable
+auditpol /set /subcategory:"Logoff" /success:enable
 ```
 
 ### 5. Access the Dashboard
@@ -145,7 +175,7 @@ Open:
 http://localhost:5173
 ```
 
-Once the agent, backend, and frontend are running, the dashboard will begin displaying endpoint telemetry in real time.
+Once the agent (or collectors, via the dashboard), backend, and frontend are running, the dashboard will begin displaying endpoint telemetry in real time.
 
 ## UI
 
@@ -165,7 +195,7 @@ Once the agent, backend, and frontend are running, the dashboard will begin disp
 
 <img width="1856" height="1028" alt="Mini-edr Settings" src="https://github.com/user-attachments/assets/d6738ba3-922c-4a70-ba87-24bc1dbca0b6" />
 
-*Connection status, WebSocket health, and collector configuration.*
+*Connection status, WebSocket health, and per-collector Start/Stop control with live logs.*
 
 ---
 
@@ -175,28 +205,39 @@ Once the agent, backend, and frontend are running, the dashboard will begin disp
 mini-edr/
 │
 ├── agent/
-│   ├── collectors/
-│   ├── database/
-│   ├── models/
-│   └── main.py
+│   ├── process_collector.py     # WMI process creation/termination trace
+│   ├── network_collector.py     # psutil connection polling
+│   ├── usb_collector.py         # WMI volume change events
+│   └── logon_collector.py       # Security Event Log (4624/4634)
 │
 ├── backend/
-│   ├── api/
-│   ├── websocket/
-│   └── app.py
+│   ├── requirements.txt
+│   └── app/
+│       ├── main.py              # FastAPI app, CORS, startup/shutdown
+│       ├── agent_manager.py     # spawns/stops collector subprocesses
+│       ├── ws_manager.py        # WebSocket client registry
+│       ├── ws_poller.py         # DB → WebSocket broadcast loop
+│       ├── models.py            # Pydantic response schemas
+│       ├── db/
+│       │   └── database.py      # schema, indices, retention
+│       └── routers/
+│           ├── events.py        # GET /events, /events/{id}
+│           ├── stats.py         # GET /stats
+│           ├── processes.py     # GET /processes
+│           ├── connections.py   # GET /connections
+│           ├── agent.py         # GET/POST /agent/* (start/stop/logs)
+│           └── ws.py            # WS /ws
 │
 ├── frontend/
-│   ├── components/
-│   ├── pages/
-│   ├── hooks/
-│   ├── services/
-│   └── App.tsx
-│
-├── database/
-│   └── events.db
+│   └── src/
+│       ├── lib/                 # API client, WS provider, data hooks
+│       ├── components/          # tables, toolbar, drawer, status cards
+│       └── pages/               # Activity Explorer, Processes, Network, Timeline, Settings
 │
 └── README.md
 ```
+
+(SQLite database and agent logs are written at runtime under `backend/data/` — gitignored, not checked in.)
 
 ---
 
@@ -258,7 +299,14 @@ Phase 1 intentionally does **not** include:
 - Automated Response
 - Threat Intelligence
 
-These features are planned for future phases.
+A few other things worth knowing if you're reading the code:
+
+- `active_connections` and `running_processes` on the dashboard are derived heuristics (recency window / creation-without-matching-termination), not live OS state queries.
+- The network collector polls every 5 seconds, so very short-lived connections between polls can be missed.
+- No authentication on the API — this is a single-user, local-network tool, not meant to be exposed to the internet as-is.
+- The agent writes directly to the SQLite file, so it currently needs to share a filesystem with the backend.
+
+These features/fixes are planned for future phases.
 
 ---
 
@@ -274,6 +322,7 @@ These features are planned for future phases.
 - Search & filters
 - Timeline
 - Investigation drawer
+- Dashboard-controlled collector start/stop with live logs
 
 ---
 

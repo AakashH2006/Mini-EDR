@@ -1,3 +1,5 @@
 fastapi
 uvicorn[standard]
 websockets
+psutil
+pywin32; sys_platform == "win32"

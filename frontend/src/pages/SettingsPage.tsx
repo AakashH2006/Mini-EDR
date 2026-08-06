@@ -2,16 +2,19 @@ import { useEffect, useState } from "react";
 import { RefreshCw, Wifi, Database, Info, Cpu, Network, Usb, LogIn } from "lucide-react";
 import { api, API_BASE, WS_URL } from "../lib/api";
 import { useWs } from "../lib/ws";
+import { useAgents } from "../lib/useAgents";
+import CollectorRow from "../components/CollectorRow";
 
-const COLLECTORS = [
-  { name: "Process Collector", icon: Cpu, desc: "WMI process creation/termination trace" },
-  { name: "Network Collector", icon: Network, desc: "psutil connection polling (5s interval)" },
-  { name: "USB Collector", icon: Usb, desc: "WMI volume change events" },
-  { name: "Logon Collector", icon: LogIn, desc: "Windows Security Event Log (4624/4634)" },
+const COLLECTOR_META = [
+  { key: "process", icon: Cpu, desc: "WMI process creation/termination trace" },
+  { key: "network", icon: Network, desc: "psutil connection polling (5s interval)" },
+  { key: "usb", icon: Usb, desc: "WMI volume change events" },
+  { key: "logon", icon: LogIn, desc: "Windows Security Event Log (4624/4634)" },
 ];
 
 export default function SettingsPage() {
   const { status: wsStatus } = useWs();
+  const { statuses, pending, error: agentError, start, stop } = useAgents();
   const [apiStatus, setApiStatus] = useState<"checking" | "ok" | "error">("checking");
   const [apiVersion, setApiVersion] = useState<string | null>(null);
   const [checkedAt, setCheckedAt] = useState<Date | null>(null);
@@ -80,17 +83,28 @@ export default function SettingsPage() {
       </Section>
 
       <Section icon={Cpu} title="Collectors">
-        <div className="space-y-3">
-          {COLLECTORS.map((c) => (
-            <div key={c.name} className="flex items-start gap-3">
-              <c.icon className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" />
-              <div>
-                <div className="text-sm text-text-primary">{c.name}</div>
-                <div className="text-xs text-text-muted">{c.desc}</div>
-              </div>
-            </div>
+        {agentError && (
+          <div className="mb-2 rounded-lg border border-critical/30 bg-critical/5 px-3 py-2 text-xs text-critical">
+            {agentError}
+          </div>
+        )}
+        <div className="space-y-2">
+          {COLLECTOR_META.map((meta) => (
+            <CollectorRow
+              key={meta.key}
+              icon={meta.icon}
+              desc={meta.desc}
+              status={statuses.find((s) => s.key === meta.key)}
+              pending={pending.has(meta.key)}
+              onStart={() => start(meta.key)}
+              onStop={() => stop(meta.key)}
+            />
           ))}
         </div>
+        <p className="pt-1 text-xs text-text-muted">
+          Process, USB, and Logon collectors need the backend running as Administrator on Windows.
+          Expand a collector to see its last 20 log lines — helpful if it shows "Crashed."
+        </p>
       </Section>
 
       <Section icon={Info} title="About">

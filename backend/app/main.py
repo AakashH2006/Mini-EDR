@@ -3,8 +3,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db.database import init_db, purge_old_events
-from app.routers import events, stats, processes, connections, ws
+from app.routers import events, stats, processes, connections, ws, agent
 from app.ws_poller import event_poll_loop
+from app import agent_manager
 
 app = FastAPI(title="Mini EDR API", version="0.1.0")
 
@@ -26,11 +27,19 @@ async def on_startup():
     asyncio.create_task(event_poll_loop())
 
 
+@app.on_event("shutdown")
+def on_shutdown():
+    # Don't leave collector subprocesses orphaned if the API restarts
+    # (e.g. uvicorn --reload picking up a code change).
+    agent_manager.stop_all()
+
+
 app.include_router(events.router, tags=["events"])
 app.include_router(stats.router, tags=["stats"])
 app.include_router(processes.router, tags=["processes"])
 app.include_router(connections.router, tags=["connections"])
 app.include_router(ws.router, tags=["websocket"])
+app.include_router(agent.router)
 
 
 @app.get("/")

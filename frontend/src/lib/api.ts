@@ -69,6 +69,20 @@ async function fetchJson<T>(path: string, params?: Record<string, string | numbe
   return res.json();
 }
 
+export interface AgentStatus {
+  key: string;
+  name: string;
+  running: boolean;
+  pid: number | null;
+  returncode: number | null;
+  started_at: number | null;
+}
+
+export interface AgentLogs {
+  key: string;
+  lines: string[];
+}
+
 export const api = {
   getRoot: () => fetchJson<{ status: string; service: string; version: string }>("/"),
   getStats: () => fetchJson<Stats>("/stats"),
@@ -89,4 +103,20 @@ export const api = {
 
   getProcesses: (params: { skip?: number; limit?: number; status?: string; search?: string } = {}) =>
     fetchJson<PaginatedList<ProcessRow>>("/processes", params),
+
+  getAgentStatusAll: () => fetchJson<AgentStatus[]>("/agent"),
+
+  startAgent: async (key: string): Promise<AgentStatus> => {
+    const res = await fetch(`${API_BASE}/agent/${key}/start`, { method: "POST" });
+    if (!res.ok) throw new Error(`Failed to start ${key}: ${res.status}`);
+    return res.json();
+  },
+
+  stopAgent: async (key: string): Promise<AgentStatus> => {
+    const res = await fetch(`${API_BASE}/agent/${key}/stop`, { method: "POST" });
+    if (!res.ok) throw new Error(`Failed to stop ${key}: ${res.status}`);
+    return res.json();
+  },
+
+  getAgentLogs: (key: string, lines = 20) => fetchJson<AgentLogs>(`/agent/${key}/logs`, { lines }),
 };
