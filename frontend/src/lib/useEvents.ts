@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api, type EventRow } from "./api";
 import { useWs } from "./ws";
+import { onRefresh } from "./refreshBus";
 
 export type Category = "all" | "processes" | "network" | "usb" | "authentication";
 
+// Must match CATEGORY_MAP in routers/events.py — this copy exists so a
+// live WS event can be filtered client-side without a round trip, and
+// the two drifting apart would make the live feed disagree with the
+// paged results beneath it.
 const CATEGORY_TYPES: Record<Exclude<Category, "all">, string[]> = {
   processes: ["process_creation", "process_termination"],
   network: ["network_connection"],
   usb: ["usb_insert", "usb_remove"],
-  authentication: ["logon", "logoff"],
+  authentication: ["logon", "logoff", "logon_failed", "special_logon"],
 };
 
 const PAGE_SIZE = 50;
@@ -32,9 +38,11 @@ function matchesFilters(event: EventRow, category: Category, search: string): bo
 }
 
 export function useEvents() {
-  const { subscribe, paused } = useWs();
+  const { subscribe, subscribeEventUpdates, paused } = useWs();
+  const [searchParams] = useSearchParams();
+  const initialCategory = (searchParams.get("category") as Category) || "all";
 
-  const [category, setCategory] = useState<Category>("all");
+  const [category, setCategory] = useState<Category>(initialCategory);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortColumn>("timestamp");
   const [order, setOrder] = useState<SortOrder>("desc");
@@ -76,6 +84,8 @@ export function useEvents() {
     load();
   }, [load]);
 
+  useEffect(() => onRefresh(load), [load]);
+
   // Live prepend: only onto page 1, only if not paused, only if the
   // incoming event matches the active filters — otherwise a live push
   // would silently violate whatever the user just filtered/searched for.
@@ -90,6 +100,23 @@ export function useEvents() {
     });
     return unsubscribe;
   }, [subscribe]);
+
+  // Detection runs a beat behind the event feed, so a row can arrive as
+  // Information and be re-scored moments later. Patching it in place
+  // means the severity rail turns red under the analyst's eyes instead
+  // of waiting for the next refresh to reveal it.
+  useEffect(() => {
+    const unsubscribe = subscribeEventUpdates(({ id, severity }) => {
+      setItems((prev) => {
+        const index = prev.findIndex((e) => e.id === id);
+        if (index === -1) return prev; // not on the current page
+        const next = [...prev];
+        next[index] = { ...next[index], severity };
+        return next;
+      });
+    });
+    return unsubscribe;
+  }, [subscribeEventUpdates]);
 
   const toggleSort = (column: SortColumn) => {
     if (sortBy === column) {

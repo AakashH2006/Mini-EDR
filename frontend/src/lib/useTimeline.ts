@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type EventRow } from "./api";
 import { useWs } from "./ws";
 import type { Category } from "./useEvents";
+import { onRefresh } from "./refreshBus";
 
 const CATEGORY_TYPES: Record<Exclude<Category, "all">, string[]> = {
   processes: ["process_creation", "process_termination"],
@@ -69,6 +70,8 @@ export function useTimeline() {
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
+
+  useEffect(() => onRefresh(loadInitial), [loadInitial]);
 
   const loadMore = useCallback(async () => {
     setLoadingMore(true);

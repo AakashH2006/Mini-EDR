@@ -59,6 +59,27 @@ def _resolve_user(sid_bytes) -> str | None:
         return None
 
 
+def _resolve_process_details(wmi, pid: int) -> dict:
+    """Best-effort lookup of ExecutablePath/CommandLine via Win32_Process.
+    Win32_ProcessStartTrace (the event source above) doesn't carry these
+    fields, so this is a second, targeted query — only for the pid that
+    just started, not a poll. Wrapped in try/except because very
+    short-lived processes can exit before this query runs; missing
+    detail is fine, a missing event is not."""
+    try:
+        results = wmi.ExecQuery(
+            f"SELECT ExecutablePath, CommandLine FROM Win32_Process WHERE ProcessId = {pid}"
+        )
+        for proc in results:
+            return {
+                "executable_path": proc.Properties_("ExecutablePath").Value,
+                "command_line": proc.Properties_("CommandLine").Value,
+            }
+    except Exception:
+        pass
+    return {"executable_path": None, "command_line": None}
+
+
 def _handle_start_events():
     pythoncom.CoInitialize()
     try:
@@ -79,15 +100,22 @@ def _handle_start_events():
                 _pid_name_cache[pid] = name
                 parent_name = _pid_name_cache.get(ppid, f"pid:{ppid}")
 
+            extra = _resolve_process_details(wmi, pid)
+
             insert_event(
                 timestamp=_utc_now(),
                 event_type="process_creation",
                 process_name=name,
                 parent_process=parent_name,
                 pid=pid,
+                # Also written into `details` below. The column is what
+                # the process-tree walk queries (it's indexed; a
+                # json_extract isn't), the JSON copy keeps the details
+                # blob self-contained for anything reading raw events.
+                parent_pid=ppid,
                 user=_resolve_user(sid),
                 severity="Information",
-                details=json.dumps({"parent_pid": ppid}),
+                details=json.dumps({"parent_pid": ppid, **extra}),
             )
     finally:
         pythoncom.CoUninitialize()

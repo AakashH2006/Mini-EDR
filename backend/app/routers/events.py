@@ -29,7 +29,7 @@ CATEGORY_MAP = {
     "processes": ["process_creation", "process_termination"],
     "network": ["network_connection"],
     "usb": ["usb_insert", "usb_remove"],
-    "authentication": ["logon", "logoff"],
+    "authentication": ["logon", "logoff", "logon_failed", "special_logon"],
 }
 
 SORTABLE_COLUMNS = {"timestamp", "process_name", "event_type", "severity", "pid", "id"}
@@ -77,10 +77,13 @@ def list_events(
         params.append(user)
     if search:
         where.append(
-            "(process_name LIKE ? OR user LIKE ? OR event_type LIKE ? OR CAST(pid AS TEXT) LIKE ?)"
+            """(process_name LIKE ? OR user LIKE ? OR event_type LIKE ?
+                OR CAST(pid AS TEXT) LIKE ?
+                OR json_extract(details,'$.command_line') LIKE ?
+                OR json_extract(details,'$.executable_path') LIKE ?)"""
         )
         like = f"%{search}%"
-        params.extend([like, like, like, like])
+        params.extend([like, like, like, like, like, like])
 
     where_clause = f"WHERE {' AND '.join(where)}" if where else ""
 

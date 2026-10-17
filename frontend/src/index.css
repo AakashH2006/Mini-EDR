@@ -34,6 +34,7 @@
   --color-success: #22c55e;
   --color-warning: #f59e0b;
   --color-critical: #ef4444;
+  --color-high: #f97316; /* distinct from critical red, for severity tiers only */
 
   --color-text-primary: #e2e8f0;
   --color-text-secondary: #94a3b8;

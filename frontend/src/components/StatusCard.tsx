@@ -17,20 +17,38 @@ interface StatusCardProps {
   tone: CardTone;
   sublabel?: string;
   pulse?: boolean; // live "breathing" dot, used only for Agent Status
+  onClick?: () => void;
 }
 
-export default function StatusCard({ label, value, icon: Icon, tone, sublabel, pulse }: StatusCardProps) {
+export default function StatusCard({ label, value, icon: Icon, tone, sublabel, pulse, onClick }: StatusCardProps) {
   const { rail, icon } = TONE_CLASSES[tone];
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border bg-panel px-5 py-4">
+    <div
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              // Enter only — Space is reserved globally for pause/resume
+              // live feed, so a focused card must not also react to it.
+              if (e.key === "Enter") onClick();
+            }
+          : undefined
+      }
+      className={[
+        "relative overflow-hidden rounded-xl border border-border bg-panel px-5 py-3 transition-colors",
+        onClick ? "cursor-pointer hover:border-border-strong hover:bg-panel-hover" : "",
+      ].join(" ")}
+    >
       <span className={`absolute left-0 top-0 h-full w-1 ${rail}`} />
       <div className="flex items-start justify-between">
         <div>
           <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
             {label}
           </div>
-          <div className="mt-1.5 font-mono text-2xl font-semibold text-text-primary">
+          <div className="mt-1 font-mono text-xl font-semibold text-text-primary">
             {value}
           </div>
           {sublabel && <div className="mt-1 text-xs text-text-secondary">{sublabel}</div>}

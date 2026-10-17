@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api, type EventRow, type ProcessRow } from "./api";
 import { useWs } from "./ws";
+import { onRefresh } from "./refreshBus";
 
 export type ProcessStatus = "all" | "running" | "terminated";
 export type ProcessSort = "first_seen" | "process_name" | "pid" | "last_seen";
@@ -10,8 +12,10 @@ const PAGE_SIZE = 50;
 
 export function useProcesses() {
   const { subscribe, paused } = useWs();
+  const [searchParams] = useSearchParams();
+  const initialStatus = (searchParams.get("status") as ProcessStatus) || "all";
 
-  const [status, setStatusFilter] = useState<ProcessStatus>("all");
+  const [status, setStatusFilter] = useState<ProcessStatus>(initialStatus);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<ProcessSort>("first_seen");
   const [order, setOrder] = useState<SortOrder>("desc");
@@ -47,6 +51,8 @@ export function useProcesses() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => onRefresh(load), [load]);
 
   // Client-side sort of the current page — the backend already sorts
   // for the initial fetch, but a WS-driven prepend below can put a

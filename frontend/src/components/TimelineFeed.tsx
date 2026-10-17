@@ -4,9 +4,10 @@ import { groupByHour } from "../lib/timelineGrouping";
 import { eventTypeMeta, severityTone, formatTimestamp } from "../lib/eventDisplay";
 
 const TONE_DOT: Record<string, string> = {
-  primary: "bg-primary ring-primary/25",
-  success: "bg-success ring-success/25",
-  warning: "bg-warning ring-warning/25",
+  info: "bg-text-muted ring-text-muted/25",
+  low: "bg-success ring-success/25",
+  medium: "bg-warning ring-warning/25",
+  high: "bg-high ring-high/25",
   critical: "bg-critical ring-critical/25",
 };
 

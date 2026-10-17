@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type ConnectionRow, type EventRow } from "./api";
 import { useWs } from "./ws";
+import { onRefresh } from "./refreshBus";
 
 const PAGE_SIZE = 50;
 
@@ -39,6 +40,8 @@ export function useConnections() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => onRefresh(load), [load]);
 
   useEffect(() => {
     const unsubscribe = subscribe((event: EventRow) => {

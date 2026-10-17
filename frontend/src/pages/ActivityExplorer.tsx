@@ -4,7 +4,9 @@ import EventToolbar from "../components/EventToolbar";
 import EventTable from "../components/EventTable";
 import Pagination from "../components/Pagination";
 import EventDetailsDrawer from "../components/EventDetailsDrawer";
+import StickyToolbar from "../components/StickyToolbar";
 import { useEvents } from "../lib/useEvents";
+import { exportToCsv } from "../lib/csv";
 import type { EventRow } from "../lib/api";
 
 export default function ActivityExplorer() {
@@ -39,7 +41,15 @@ export default function ActivityExplorer() {
       <StatusCards />
 
       <div className="space-y-3">
-        <EventToolbar search={search} onSearch={setSearch} category={category} onCategory={setCategory} />
+        <StickyToolbar>
+          <EventToolbar
+            search={search}
+            onSearch={setSearch}
+            category={category}
+            onCategory={setCategory}
+            onExportCsv={() => exportToCsv("activity-explorer", items)}
+          />
+        </StickyToolbar>
         <EventTable
           items={items}
           loading={loading}

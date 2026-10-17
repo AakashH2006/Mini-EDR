@@ -29,7 +29,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional
 
-from app.db.database import connection
+from app.db.database import connection, iso_cutoff
 
 router = APIRouter()
 
@@ -80,8 +80,8 @@ def get_stats():
                               json_extract(details,'$.remote_port'))
                FROM events
                WHERE event_type = 'network_connection'
-                 AND timestamp >= datetime('now', ?)""",
-            (f"-{ACTIVE_CONN_WINDOW_MINUTES} minutes",),
+                 AND timestamp >= ?""",
+            (iso_cutoff(minutes=ACTIVE_CONN_WINDOW_MINUTES),),
         ).fetchone()[0]
 
         usb_devices = conn.execute(

@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, Wifi, Database, Info, Cpu, Network, Usb, LogIn } from "lucide-react";
+import { RefreshCw, Wifi, Database, Info, Cpu, Network, Usb, LogIn, ShieldAlert } from "lucide-react";
 import { api, API_BASE, WS_URL } from "../lib/api";
 import { useWs } from "../lib/ws";
 import { useAgents } from "../lib/useAgents";
 import CollectorRow from "../components/CollectorRow";
+import RulePanel from "../components/RulePanel";
 
 const COLLECTOR_META = [
   { key: "process", icon: Cpu, desc: "WMI process creation/termination trace" },
   { key: "network", icon: Network, desc: "psutil connection polling (5s interval)" },
   { key: "usb", icon: Usb, desc: "WMI volume change events" },
-  { key: "logon", icon: LogIn, desc: "Windows Security Event Log (4624/4634)" },
+  { key: "logon", icon: LogIn, desc: "Windows Security Event Log (4624/4634/4625/4672)" },
 ];
 
 export default function SettingsPage() {
@@ -37,13 +38,17 @@ export default function SettingsPage() {
   }, []);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-text-primary">Settings</h1>
         <p className="mt-1 text-sm text-text-secondary">
-          Connection info and system status. Phase 1 has no configurable detection rules yet.
+          Connection info, collector control, and the detection rule pack.
         </p>
       </div>
+
+      <Section icon={ShieldAlert} title="Detection Rules">
+        <RulePanel />
+      </Section>
 
       <Section icon={Database} title="Backend Connection">
         <Row label="API Base URL" value={API_BASE} mono />
@@ -76,9 +81,15 @@ export default function SettingsPage() {
 
       <Section icon={Database} title="Data Retention">
         <Row label="Retention Period" value="30 days" mono />
-        <Row label="Indexed Columns" value="timestamp, process_name, event_type" mono />
+        <Row
+          label="Indexed Columns"
+          value="timestamp, process_name, event_type, pid, parent_pid"
+          mono
+        />
         <p className="pt-1 text-xs text-text-muted">
           Events older than the retention period are purged automatically on API startup.
+          Alerts and cases age out with the evidence behind them, so a case never outlives
+          the events it cites.
         </p>
       </Section>
 
@@ -109,8 +120,14 @@ export default function SettingsPage() {
 
       <Section icon={Info} title="About">
         <p className="text-sm text-text-secondary">
-          Mini EDR — Phase 1: endpoint telemetry only. Threat detection, MITRE ATT&CK mapping, and
-          automated response actions are not part of this build.
+          Mini EDR — Phase 3. Endpoint telemetry collection, a rule-based detection engine with
+          MITRE ATT&amp;CK mapping, and behavioural correlation of alerts into investigable cases
+          with process lineage and attack-chain reconstruction.
+        </p>
+        <p className="mt-2 text-xs text-text-muted">
+          Detection is rule-based: it recognises patterns it has been told about, and will not
+          catch a technique no rule describes. There is no machine learning and no automated
+          response — nothing here kills a process or isolates a host.
         </p>
       </Section>
     </div>

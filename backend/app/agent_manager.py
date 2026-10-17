@@ -28,6 +28,8 @@ AGENT_DIR = Path(__file__).resolve().parent.parent.parent / "agent"
 LOG_DIR = Path(__file__).resolve().parent.parent / "data" / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
+AGENT_VERSION = "1.0.0"
+
 # Windows-only flag to stop a console window flashing up per collector;
 # no-op (0) on other platforms since the attribute doesn't exist there.
 _CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -114,3 +116,36 @@ def tail_log(key: str, lines: int = 20) -> list[str]:
 def stop_all() -> None:
     for key in COLLECTORS:
         stop(key)
+
+
+def resource_usage() -> dict:
+    """Aggregate CPU%/memory across all currently-running collector
+    subprocesses. Each running collector gets a short (50ms) blocking
+    cpu_percent() sample — psutil needs two time-separated readings to
+    compute a rate, and a fresh Process object has no prior sample to
+    diff against. With at most 4 collectors that's ~200ms worst case,
+    acceptable for a periodically-polled diagnostics figure, not a hot
+    path. A collector that exits mid-sample is skipped, not fatal.
+    """
+    import psutil
+
+    total_cpu = 0.0
+    total_mem_mb = 0.0
+    running_count = 0
+
+    for handle in COLLECTORS.values():
+        if not (handle.process and handle.process.poll() is None):
+            continue
+        try:
+            p = psutil.Process(handle.process.pid)
+            total_cpu += p.cpu_percent(interval=0.05)
+            total_mem_mb += p.memory_info().rss / (1024 * 1024)
+            running_count += 1
+        except psutil.NoSuchProcess:
+            continue
+
+    return {
+        "running_collectors": running_count,
+        "cpu_percent": round(total_cpu, 1),
+        "memory_mb": round(total_mem_mb, 1),
+    }

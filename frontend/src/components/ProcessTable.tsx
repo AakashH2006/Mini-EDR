@@ -1,4 +1,4 @@
-import { ChevronUp, ChevronDown, Inbox } from "lucide-react";
+import { ChevronUp, ChevronDown, GitBranch, Inbox } from "lucide-react";
 import type { ProcessRow } from "../lib/api";
 import type { ProcessSort, SortOrder } from "../lib/useProcesses";
 import { formatTimestamp } from "../lib/eventDisplay";
@@ -16,6 +16,7 @@ const COLUMNS: Column[] = [
   { key: "first_seen", label: "First Seen" },
   { key: "last_seen", label: "Last Seen" },
   { key: null, label: "Status" },
+  { key: null, label: "Lineage" },
 ];
 
 interface Props {
@@ -25,9 +26,21 @@ interface Props {
   sortBy: ProcessSort;
   order: SortOrder;
   onSort: (col: ProcessSort) => void;
+  /** Opens the Phase 3 lineage view for this process instance. The
+   *  row's `id` is its process_creation event id, which identifies one
+   *  instance exactly — unlike the pid, which Windows reuses. */
+  onShowTree: (row: ProcessRow) => void;
 }
 
-export default function ProcessTable({ items, loading, error, sortBy, order, onSort }: Props) {
+export default function ProcessTable({
+  items,
+  loading,
+  error,
+  sortBy,
+  order,
+  onSort,
+  onShowTree,
+}: Props) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-panel">
       <div className="overflow-x-auto">
@@ -120,6 +133,16 @@ export default function ProcessTable({ items, loading, error, sortBy, order, onS
                     >
                       {p.status === "running" ? "Running" : "Terminated"}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => onShowTree(p)}
+                      title="Show process tree"
+                      className="flex items-center gap-1 rounded-lg border border-border bg-panel-hover px-2 py-1 text-xs text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+                    >
+                      <GitBranch className="h-3.5 w-3.5" />
+                      Tree
+                    </button>
                   </td>
                 </tr>
               ))

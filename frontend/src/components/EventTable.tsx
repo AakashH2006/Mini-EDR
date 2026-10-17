@@ -2,18 +2,14 @@ import { ChevronUp, ChevronDown, Inbox } from "lucide-react";
 import type { EventRow } from "../lib/api";
 import type { SortColumn, SortOrder } from "../lib/useEvents";
 import { eventTypeMeta, severityTone, formatTimestamp } from "../lib/eventDisplay";
+import SeverityBadge from "./SeverityBadge";
 
 const TONE_BAR: Record<string, string> = {
-  primary: "bg-primary",
-  success: "bg-success",
-  warning: "bg-warning",
+  info: "bg-text-muted",
+  low: "bg-success",
+  medium: "bg-warning",
+  high: "bg-high",
   critical: "bg-critical",
-};
-const TONE_TEXT: Record<string, string> = {
-  primary: "text-primary",
-  success: "text-success",
-  warning: "text-warning",
-  critical: "text-critical",
 };
 
 interface Column {
@@ -129,7 +125,7 @@ export default function EventTable({ items, loading, error, sortBy, order, onSor
                       {event.user ?? <span className="text-text-muted">—</span>}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-medium ${TONE_TEXT[tone]}`}>{event.severity}</span>
+                      <SeverityBadge severity={event.severity} />
                     </td>
                   </tr>
                 );

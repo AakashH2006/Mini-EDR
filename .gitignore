@@ -17,3 +17,6 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Stale duplicate of this project from an earlier commit, carrying its
+# own .git. Kept on disk for now; not part of this tree.
+mini-edr/

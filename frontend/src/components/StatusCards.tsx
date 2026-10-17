@@ -1,9 +1,11 @@
+import { useNavigate } from "react-router-dom";
 import { ShieldCheck, ShieldAlert, ListChecks, Cpu, Network, Usb } from "lucide-react";
 import StatusCard from "./StatusCard";
 import { useLiveStats } from "../lib/useLiveStats";
 
 export default function StatusCards() {
   const stats = useLiveStats();
+  const navigate = useNavigate();
 
   if (stats.error) {
     return (
@@ -24,30 +26,35 @@ export default function StatusCards() {
         tone={stats.agent_status === "online" ? "success" : "critical"}
         pulse={stats.agent_status === "online"}
         sublabel={stats.last_event_at ? `Last event ${relativeTime(stats.last_event_at)}` : "No events yet"}
+        onClick={() => navigate("/settings")}
       />
       <StatusCard
         label="Events Today"
         value={value(stats.events_today)}
         icon={ListChecks}
         tone="primary"
+        onClick={() => navigate("/")}
       />
       <StatusCard
         label="Running Processes"
         value={value(stats.running_processes)}
         icon={Cpu}
         tone="secondary"
+        onClick={() => navigate("/processes?status=running")}
       />
       <StatusCard
         label="Active Connections"
         value={value(stats.active_connections)}
         icon={Network}
         tone="secondary"
+        onClick={() => navigate("/network")}
       />
       <StatusCard
         label="USB Devices"
         value={value(stats.usb_devices)}
         icon={Usb}
         tone="warning"
+        onClick={() => navigate("/?category=usb")}
       />
     </div>
   );

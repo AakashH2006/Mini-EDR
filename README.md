@@ -1,152 +1,124 @@
-# Mini EDR – Endpoint Telemetry & Live Security Dashboard
+# Mini EDR
 
-Mini EDR monitors endpoint activity on a Windows machine and provides real-time visibility into system events—process creation, network connections, USB insertions, and user logons—streamed live to a React dashboard via WebSockets.
+A lightweight endpoint detection and response tool — Windows agent → SQLite → FastAPI → React, with live updates over WebSockets.
 
-<img width="1860" height="1021" alt="Mini-EDR dashboard" src="https://github.com/user-attachments/assets/c876a0b3-65d2-4f43-b3de-7e5e5fefa641" />
+**Current scope (Phase 3):** collects endpoint telemetry, scores it against a rule-based detection engine mapped to MITRE ATT&CK, and correlates the resulting alerts into investigable cases with process lineage and attack-chain reconstruction.
 
-## Why This Project
-
-I built **Mini EDR** to understand how commercial Endpoint Detection & Response (EDR) platforms work from an engineer's perspective—not just as a user. This project is my hands-on journey into Windows telemetry, real-time event streaming, backend architecture, and SOC-style dashboard design.
-
-My goal is to progressively evolve it into a complete EDR platform by adding detection logic, behavioral analysis, explainable AI, and response capabilities while learning the technologies behind each component.
-
-> **Current Status:** Phase 1 – Telemetry Collection & Visualization
----
-
-## Overview
-
-Mini EDR monitors endpoint activity on a Windows machine and provides real-time visibility into system events. The project is designed to evolve into a full EDR platform with rule-based detection, behavioral analytics, explainable AI, and automated response capabilities.
-
-Phase 1 focuses only on **telemetry**, not threat detection.
-
----
-
-## Features
-
-### Endpoint Telemetry
-
-- Process creation monitoring
-- Process termination monitoring
-- Active network connection monitoring
-- USB device insertion/removal
-- User logon/logoff events
-
-### Live Dashboard
-
-- Real-time event stream
-- Global search
-- Event filtering
-- Pagination
-- Sortable event table
-- Activity timeline
-- Investigation drawer
-- Live WebSocket updates
-
-### Dashboard Statistics
-
-- Agent Status
-- Events Today
-- Running Processes
-- Active Connections
-- USB Devices
-
-### Diagnostics & Agent Control
-
-- Collector health monitoring (Running / Stopped / Crashed)
-- **Start/stop each collector directly from the dashboard** — no need for separate terminals
-- Live collector debug logs (last 20 lines), viewable inline per collector
-- WebSocket status (Live / Connecting / Disconnected) with manual Reconnect
-- Backend/API connection status
-
----
+What it is *not*: there is no machine learning, no anomaly scoring, and no automated response — nothing here kills a process or isolates a host. Detection is rule-based, so it recognises patterns it has been told about and will miss a technique no rule describes. The rule pack and its false-positive trade-offs are visible in the dashboard and documented in `backend/app/detection/rules.py`.
 
 ## Architecture
 
-```text
-Windows Endpoint
-        │
-        ▼
-Python Telemetry Agent (4 collectors)
-        │
-        ▼
-SQLite Database (WAL mode, 30-day retention)
-        │
-        ▼
-FastAPI Backend (REST + WebSocket)
-        │
-        ▼
-React + TypeScript Dashboard
+```
+Windows
+  │
+  ▼
+Python Agent (4 collectors) ──► SQLite (WAL mode, 30-day retention)
+  │                                       │
+  │                        ┌──────────────┴──────────────┐
+  │                        ▼                             ▼
+  │                 Detection engine              FastAPI (REST + WS)
+  │                 (rules → alerts →                    │
+  │                  incidents)                          │
+  │                        └──────────────┬──────────────┘
+  │                                       ▼
+  └────────────── controlled by ──► React Dashboard
 ```
 
-The dashboard doesn't just read from this pipeline — it can also control the agent side of it. The Settings page spawns/stops each collector as a subprocess of the backend and tails its log, so day-to-day use doesn't require managing terminals by hand.
+- **Agent → SQLite**: each collector writes events directly to the database. No in-memory queue — SQLite is the durable buffer, so an agent crash doesn't lose data.
+- **Detection → SQLite**: a background task in the API reads new events, scores them against the rule pack, writes alerts, raises the triggering event's severity, and groups related alerts into incidents.
+- **FastAPI → SQLite**: the API only reads. Two independent background cursors poll for new rows — one broadcasting events to the dashboard, one feeding detection.
+- **Dashboard → API**: REST for page loads/pagination, WebSocket for live events, alerts and incident updates. The dashboard can also start/stop the collector subprocesses directly (Settings page).
 
----
+### Two cursors, on purpose
 
-## Tech Stack
+The event poller starts at the current `MAX(id)` so clients see live activity rather than a replay of history. The detection poller resumes from a cursor persisted in the database, so an API restart re-scores nothing already scored and skips nothing written while it was down.
 
-### Backend
+A consequence worth naming: an event reaches the dashboard a moment before its verdict does, so a row can appear as `Information` and then turn red. Rather than hide that by delaying every event until it has been scored, the engine emits an `event_update` message and the table re-colours the row in place. Detection latency is real and the UI shows it.
 
-- Python
-- FastAPI
-- SQLite
-- WebSockets
+## Features
 
-### Frontend
+### Telemetry (Phase 1)
+- **Activity Explorer** — live event table: search, category filters, sortable columns, pagination, details drawer, pause/resume live feed
+- **Processes** — every process instance, correlated from creation/termination events, with a lineage view per row
+- **Network** — outbound connections, active/idle status
+- **Timeline** — chronological feed grouped by hour
+- **Settings** — connection status, retention policy, per-collector Start/Stop with live log tail
 
-- React
-- TypeScript
-- Vite
-- Tailwind CSS
+### Detection (Phase 2)
+- **21 detection rules** across 10 ATT&CK tactics — encoded PowerShell, LOLBin downloads, credential dumping, shadow-copy deletion, defence tampering, masquerading binaries, discovery bursts, C2 connections, brute force, removable-media execution and more
+- **Severity scoring** — each alert carries a severity tier and a 0–100 risk score; the triggering event's own severity is raised to match, so the existing event table colours itself from detection output
+- **Alert dashboard** — triage queue sorted worst-first, with filters, summary cards, an evidence drawer showing exactly which values matched, and a four-state triage workflow
+- **Rule management** — enable/disable any rule from Settings, with live hit counts
 
-### Agent
+### Behavioral analysis (Phase 3)
+- **Process correlation** — `parent_pid` is a real indexed column, and every lookup is anchored to a point in time so recycled pids never graft unrelated processes onto a tree
+- **Process trees** — full ancestor-and-descendant lineage for any process, with alert counts and severity per node, reachable from the Processes table, any alert, or a case
+- **Attack chains** — a case's alerts laid out by ATT&CK tactic in kill-chain order, with the stages never reached shown as gaps
+- **Investigation workflow** — cases open automatically when alerts share a process lineage, carry a status (open → investigating → contained → closed), and keep analyst notes and status history in one chronological record
 
-- Python
-- `pywin32` (WMI process trace, volume change events, Security Event Log)
-- `psutil` (network connection polling)
+### How alerts become cases
 
----
-## Design Decisions
+Shared process lineage inside a 30-minute window. If a macro in Word spawned PowerShell, which disabled Defender and then dumped credentials, those alerts fire on three different pids — but all three trace back through the same ancestry to `winword.exe`. Walking up from each alert and looking for an overlap is what connects them.
 
-| Decision | Reason |
-|----------|--------|
-| **Python** | Rich ecosystem for Windows telemetry, system monitoring, and rapid backend development. |
-| **FastAPI** | High-performance API framework with automatic documentation and excellent WebSocket support. |
-| **SQLite** | Lightweight, serverless database that's perfect for a single-endpoint EDR prototype while keeping deployment simple. |
-| **React + TypeScript** | Component-based architecture with type safety for building a scalable dashboard. |
-| **Tailwind CSS** | Rapid development with consistent, maintainable UI styling. |
-| **Vite** | Fast development server and build tooling for React applications. |
-| **WebSockets** | Enables real-time event streaming without inefficient polling. |
-| **Unified Event Schema** | Normalizing all telemetry into a common format simplifies querying, filtering, and future detection logic. |
-| **Collector-Based Architecture** | Each telemetry source is isolated, making it easy to extend with new collectors later. |
+Only Medium and above open a case; a Low alert joins one that already exists but never creates one, so the case list keeps meaning "things worth looking at". An incident's score is its worst alert raised by how many tactics it spans, which orders the queue better than severity alone — a High spanning six stages outranks a Critical that fired once.
 
----
-## Future Improvements
+## Tech stack
 
-- Rule-based detection engine
-- Process tree correlation
-- MITRE ATT&CK mapping
-- SHAP-based explainability
-- Automated response actions
-- Multi-endpoint support
+| Layer | Stack |
+|---|---|
+| Agent | Python, WMI (`pywin32`), `psutil`, Windows Security Event Log |
+| Detection | Python (rules as predicates, no DSL), SQLite correlation |
+| Backend | Python, FastAPI, SQLite, WebSockets |
+| Frontend | React, TypeScript, Tailwind CSS, Vite |
 
----
+## Project structure
 
-## Setup Instructions
-
-### Prerequisites
-
-- Python 3.11+
-- Node.js 20+
-- Git
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/AakashH2006/mini-edr.git
-cd mini-edr
+```
+mini-edr/
+├── agent/                    # Windows telemetry collectors (run as Administrator)
+│   ├── process_collector.py     WMI process creation/termination trace
+│   ├── network_collector.py     psutil connection polling
+│   ├── usb_collector.py         WMI volume change events
+│   └── logon_collector.py       Security Event Log (4624/4634/4625/4672)
+├── backend/
+│   ├── requirements.txt
+│   ├── scripts/
+│   │   └── seed_demo_attack.py  synthetic intrusion for demos/testing
+│   └── app/
+│       ├── main.py               FastAPI app, CORS, startup/shutdown
+│       ├── agent_manager.py      spawns/stops collector subprocesses
+│       ├── ws_manager.py         WebSocket client registry
+│       ├── ws_poller.py          DB → WebSocket broadcast loop
+│       ├── db/database.py        schema, migrations, indices, retention
+│       ├── detection/
+│       │   ├── rules.py           the 21-rule pack
+│       │   ├── engine.py          rule evaluation, alert persistence, dedup
+│       │   ├── correlation.py     alerts → incidents, attack chains
+│       │   ├── lineage.py         process tree walking (pid-reuse safe)
+│       │   ├── mitre.py           ATT&CK tactics + the severity model
+│       │   └── poller.py          detection background loop + backfill
+│       └── routers/
+│           ├── events.py         GET /events, /events/{id}
+│           ├── stats.py          GET /stats
+│           ├── processes.py      GET /processes
+│           ├── connections.py    GET /connections
+│           ├── alerts.py         GET/PATCH /alerts/*
+│           ├── incidents.py      GET/PATCH/POST /incidents/*
+│           ├── rules.py          GET /rules, POST /rules/{id}/toggle
+│           ├── tree.py           GET /process-tree/*
+│           ├── agent.py          GET/POST /agent/* (start/stop/logs)
+│           └── ws.py             WS /ws
+└── frontend/
+    └── src/
+        ├── lib/                 API client, WS provider, data hooks
+        ├── components/          tables, drawers, attack chain, process tree
+        └── pages/               Activity Explorer, Alerts, Investigations,
+                                 Processes, Network, Timeline, Settings
 ```
 
-### 2. Backend
+## Setup
+
+### 1. Backend
 
 ```powershell
 cd backend
@@ -158,9 +130,11 @@ python -m uvicorn app.main:app --reload
 
 Runs on `http://localhost:8000`. For full telemetry visibility (WMI process trace, Security log, elevated network connections) and to control collectors from the Settings page, **run this terminal as Administrator**.
 
-### 3. Frontend
+The database upgrades itself on startup: new tables are created, the `parent_pid` column is added to an existing `events` table and backfilled from the JSON details blob. No manual migration step.
 
-```bash
+### 2. Frontend
+
+```powershell
 cd frontend
 npm install
 npm run dev
@@ -168,236 +142,59 @@ npm run dev
 
 Opens on `http://localhost:5173`.
 
-### 4. Agent
+### 3. Agent
 
-There are two ways to run the collectors:
+**Option A — from the dashboard (recommended):** with the backend running as Administrator, go to **Settings → Collectors** and hit Start on each one. Logs are visible inline if something fails (most commonly: not elevated, or logoff auditing not enabled — see below).
 
-**Option A — from the dashboard (recommended):** with the backend running as Administrator, go to **Settings → Collectors** and hit Start on each one. If a collector shows "Crashed," expand it — the log tail usually points straight at the cause (most often: not elevated, or logoff auditing not enabled).
-
-**Option B — manually, one terminal per collector:**
-
+**Option B — manually, per collector:**
 ```powershell
-cd agent
+cd mini-edr
 python -m venv agent-venv
 agent-venv\Scripts\activate
 python -m pip install pywin32 psutil
-python process_collector.py
+python agent\process_collector.py
 ```
+Run each collector in its own terminal, as Administrator.
 
-Repeat for `network_collector.py`, `usb_collector.py`, and `logon_collector.py`, each as Administrator.
-
-**One-time setup for logon/logoff events** — Windows doesn't audit logoffs by default:
-
+**One-time setup for logon events:** Windows doesn't audit logoff or special-logon events by default. Enable them with:
 ```powershell
 auditpol /set /subcategory:"Logon" /success:enable /failure:enable
 auditpol /set /subcategory:"Logoff" /success:enable
+auditpol /set /subcategory:"Special Logon" /success:enable
 ```
 
-### 5. Access the Dashboard
+### 4. Seeing detection work
 
-Open:
+A normal machine doing normal things is exactly what the rules are built *not* to fire on, so a fresh install shows an empty alert list. To see the detection engine, attack chains and process trees with something to work on:
 
-```
-http://localhost:5173
-```
-
-Once the agent (or collectors, via the dashboard), backend, and frontend are running, the dashboard will begin displaying endpoint telemetry in real time.
-
-## UI
-
-### Dashboard Overview
-
-<img width="1867" height="1027" alt="Detailed dashboard" src="https://github.com/user-attachments/assets/8d8cf04d-a89a-4758-b8d4-589167db4bfa" />
-
-*Main Activity Explorer showing real-time event stream, statistics cards, and expanded event details.*
-
-### Timeline View
-
-<img width="1862" height="1042" alt="Timeline Mini-edr" src="https://github.com/user-attachments/assets/929472aa-84b1-434a-af44-52c135779581" />
-
-*Chronological event feed grouped by hour for investigation workflows.*
-
-### Settings & Diagnostics
-
-<img width="1856" height="1028" alt="Mini-edr Settings" src="https://github.com/user-attachments/assets/d6738ba3-922c-4a70-ba87-24bc1dbca0b6" />
-
-*Connection status, WebSocket health, and per-collector Start/Stop control with live logs.*
-
----
-
-## Project Structure
-
-```
-mini-edr/
-│
-├── agent/
-│   ├── process_collector.py     # WMI process creation/termination trace
-│   ├── network_collector.py     # psutil connection polling
-│   ├── usb_collector.py         # WMI volume change events
-│   └── logon_collector.py       # Security Event Log (4624/4634)
-│
-├── backend/
-│   ├── requirements.txt
-│   └── app/
-│       ├── main.py              # FastAPI app, CORS, startup/shutdown
-│       ├── agent_manager.py     # spawns/stops collector subprocesses
-│       ├── ws_manager.py        # WebSocket client registry
-│       ├── ws_poller.py         # DB → WebSocket broadcast loop
-│       ├── models.py            # Pydantic response schemas
-│       ├── db/
-│       │   └── database.py      # schema, indices, retention
-│       └── routers/
-│           ├── events.py        # GET /events, /events/{id}
-│           ├── stats.py         # GET /stats
-│           ├── processes.py     # GET /processes
-│           ├── connections.py   # GET /connections
-│           ├── agent.py         # GET/POST /agent/* (start/stop/logs)
-│           └── ws.py            # WS /ws
-│
-├── frontend/
-│   └── src/
-│       ├── lib/                 # API client, WS provider, data hooks
-│       ├── components/          # tables, toolbar, drawer, status cards
-│       └── pages/               # Activity Explorer, Processes, Network, Timeline, Settings
-│
-└── README.md
+```powershell
+cd backend
+python scripts\seed_demo_attack.py
 ```
 
-(SQLite database and agent logs are written at runtime under `backend/data/` — gitignored, not checked in.)
+This writes the events a phishing-to-ransomware intrusion would leave behind — no payload, nothing executed, just rows in SQLite. It produces 24 alerts and two cases: a Critical one spanning all ten tactics, and a separate High for the credential-spraying activity, which has no process lineage in common with the rest. Every row is tagged, so it removes cleanly:
 
----
-
-## Event Pipeline
-
-```
-Windows Event
-
-↓
-
-Collector
-
-↓
-
-Normalize Event
-
-↓
-
-SQLite
-
-↓
-
-FastAPI
-
-↓
-
-WebSocket
-
-↓
-
-Dashboard
+```powershell
+python scripts\seed_demo_attack.py --reset
 ```
 
-Every event is normalized into a common schema before storage.
+## Known simplifications
 
----
+- **Detection is signature-shaped.** Rules match on command-line content, process relationships and paths. An attacker who renames their binary and avoids the indicator strings will not trip them. Phase 4's ML layer is the answer to that, not more string matching.
+- **`EDR-011` (execution from a user-writable directory) is noisy by design.** Installers legitimately run from Temp. It's Medium with a one-hour cooldown keyed on the path, and is meant as context that sharpens other findings rather than a finding on its own.
+- Process trees are only as deep as the collector's uptime — a process that was already running when collection started has no creation event, so the chain ends there. The UI says so rather than presenting a partial chain as complete.
+- `active_connections` and `running_processes` in `/stats` are derived heuristics (recency window / creation-without-termination), not live OS state queries.
+- Network collector polls every 5s; very short-lived connections between polls can be missed.
+- No authentication on the API — this is a single-user, local-network tool. Don't expose it to the internet as-is.
+- Agent and backend are expected to share a filesystem (agent writes directly to the SQLite file).
 
-## Current Event Types
+## Roadmap
 
-- Process Created
-- Process Terminated
-- Network Connection
-- USB Inserted
-- USB Removed
-- User Logon
-- User Logoff
+- ~~**Phase 1** — telemetry collection and visualization~~ ✅
+- ~~**Phase 2** — rule-based detection, severity scoring, alert dashboard~~ ✅
+- ~~**Phase 3** — process correlation, process trees, attack chains, investigation workflow~~ ✅
+- **Phase 4** — explainable AI: ML-based detection, SHAP explanations, risk scoring on learned behaviour rather than fixed rules
 
----
+## License
 
-## Current Limitations
-
-Phase 1 intentionally does **not** include:
-
-- Threat Detection
-- Rule Engine
-- MITRE ATT&CK Mapping
-- Machine Learning
-- SHAP/LIME Explanations
-- Automated Response
-- Threat Intelligence
-
-A few other things worth knowing if you're reading the code:
-
-- `active_connections` and `running_processes` on the dashboard are derived heuristics (recency window / creation-without-matching-termination), not live OS state queries.
-- The network collector polls every 5 seconds, so very short-lived connections between polls can be missed.
-- No authentication on the API — this is a single-user, local-network tool, not meant to be exposed to the internet as-is.
-- The agent writes directly to the SQLite file, so it currently needs to share a filesystem with the backend.
-
-These features/fixes are planned for future phases.
-
----
-
-# Roadmap
-
-## ✅ Phase 1 — Endpoint Telemetry
-
-- Endpoint collectors
-- SQLite storage
-- FastAPI backend
-- React dashboard
-- Live event streaming
-- Search & filters
-- Timeline
-- Investigation drawer
-- Dashboard-controlled collector start/stop with live logs
-
----
-
-## 🔜 Phase 2 — Detection Engine
-
-- Rule-based detections
-- Severity scoring
-- Alert generation
-- Alert dashboard
-
----
-
-## 🔜 Phase 3 — Behavioral Analysis
-
-- Process correlation
-- Parent-child process trees
-- Attack chain visualization
-- Investigation workflows
-
----
-
-## 🔜 Phase 4 — Explainable AI
-
-- Machine Learning detection
-- SHAP explanations
-- Risk scoring
-- Explainable alerts
-
----
-
-## 🔜 Phase 5 — Response
-
-- Process termination
-- Network isolation
-- Quarantine
-- Automated response actions
-
----
-
-## Goals
-
-- Learn endpoint security internals
-- Understand EDR architecture
-- Build a production-inspired SOC dashboard
-- Gain hands-on experience with Windows telemetry
-- Create a strong cybersecurity portfolio project
-
----
-
-## Disclaimer
-
-Mini EDR is an educational project intended for learning endpoint security concepts. It is not intended to replace commercial EDR solutions or provide production-grade protection.
+Personal portfolio project — no license specified.

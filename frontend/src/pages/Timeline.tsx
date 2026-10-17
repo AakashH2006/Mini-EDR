@@ -2,7 +2,9 @@ import { useState } from "react";
 import EventToolbar from "../components/EventToolbar";
 import TimelineFeed from "../components/TimelineFeed";
 import EventDetailsDrawer from "../components/EventDetailsDrawer";
+import StickyToolbar from "../components/StickyToolbar";
 import { useTimeline } from "../lib/useTimeline";
+import { exportToCsv } from "../lib/csv";
 import type { EventRow } from "../lib/api";
 
 export default function Timeline() {
@@ -32,7 +34,15 @@ export default function Timeline() {
       </div>
 
       <div className="space-y-4">
-        <EventToolbar search={search} onSearch={setSearch} category={category} onCategory={setCategory} />
+        <StickyToolbar>
+          <EventToolbar
+            search={search}
+            onSearch={setSearch}
+            category={category}
+            onCategory={setCategory}
+            onExportCsv={() => exportToCsv("timeline", events)}
+          />
+        </StickyToolbar>
 
         <TimelineFeed events={events} loading={loading} error={error} onSelect={setSelected} />
 

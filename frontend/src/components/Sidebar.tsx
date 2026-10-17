@@ -2,14 +2,19 @@ import { NavLink } from "react-router-dom";
 import {
   ShieldHalf,
   ListTree,
+  ShieldAlert,
+  FolderSearch,
   Cpu,
   Network,
   GanttChartSquare,
   Settings,
 } from "lucide-react";
+import { useOpenAlertCount } from "../lib/useAlerts";
 
 const NAV_ITEMS = [
   { to: "/", label: "Activity Explorer", icon: ListTree, end: true },
+  { to: "/alerts", label: "Alerts", icon: ShieldAlert, badge: "alerts" as const },
+  { to: "/investigations", label: "Investigations", icon: FolderSearch },
   { to: "/processes", label: "Processes", icon: Cpu },
   { to: "/network", label: "Network", icon: Network },
   { to: "/timeline", label: "Timeline", icon: GanttChartSquare },
@@ -17,6 +22,11 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar() {
+  // The open-alert count lives here rather than on the Alerts page, so
+  // a Critical that fires while the analyst is on another page is
+  // visible without them going to look for it.
+  const openAlerts = useOpenAlertCount();
+
   return (
     <aside className="flex h-full w-60 shrink-0 flex-col border-r border-border bg-panel">
       <div className="flex items-center gap-2.5 border-b border-border px-5 py-5">
@@ -26,13 +36,13 @@ export default function Sidebar() {
             Mini EDR
           </div>
           <div className="text-[11px] font-mono text-text-muted">
-            endpoint telemetry
+            endpoint detection
           </div>
         </div>
       </div>
 
       <nav className="flex-1 space-y-0.5 px-3 py-4">
-        {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
+        {NAV_ITEMS.map(({ to, label, icon: Icon, end, badge }) => (
           <NavLink
             key={to}
             to={to}
@@ -64,7 +74,12 @@ export default function Sidebar() {
                   ].join(" ")}
                   strokeWidth={2}
                 />
-                {label}
+                <span className="flex-1">{label}</span>
+                {badge === "alerts" && openAlerts > 0 && (
+                  <span className="rounded-full bg-critical/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-critical">
+                    {openAlerts > 99 ? "99+" : openAlerts}
+                  </span>
+                )}
               </>
             )}
           </NavLink>
@@ -73,7 +88,7 @@ export default function Sidebar() {
 
       <div className="border-t border-border px-5 py-4">
         <div className="text-[11px] font-mono text-text-muted">
-          Phase 1 · Telemetry only
+          Phase 3 · Behavioral analysis
         </div>
       </div>
     </aside>
